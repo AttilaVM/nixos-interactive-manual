@@ -1,0 +1,1507 @@
+#+PROPERTY: header-args:sh :colnames yes
+
+#+name: tabSep
+#+begin_src sh :var string="foo bar"
+echo "$string" | sed 's/ /\t/g'
+#+end_src
+
+#+RESULTS: tabSep
+| foo | bar |
+
+
+* NixOS CLI
+** Paths
+*** Executable sym
+If a derivation is installed inside a user env
+
+#+begin_src sh :results value file
+which git
+#+end_src
+
+#+RESULTS:
+[[file:/run/current-system/sw/bin/git]]
+
+
+If a derivation is installed inside a NixOs profile
+
+#+begin_src sh :results value file
+which chromium
+#+end_src
+
+#+RESULTS:
+[[file:/home/attila/.nix-profile/bin/chromium
+]]
+
+however they are just sym links to the real executables inside store
+
+#+begin_src sh :results value vector
+which chromium | xargs realpath &&which git | xargs realpath
+#+end_src
+
+#+RESULTS:
+| /nix/store/6df3vhfv5ldqwmqx6bhbijb9l1fl3l48-chromium-60.0.3112.90/bin/chromium |
+| /nix/store/9bzdjxa0h1niiprs98jncxkddpmlz0gi-git-2.15.0/bin/git                 |
+
+** nix-channel
+*** List channels
+
+#+begin_src sh :post tabSep(*this*)
+nix-channel --list
+#+end_src
+
+#+RESULTS:
+| nixpkgs | https://nixos.org/channels/nixpkgs-unstable |
+
+#+begin_src sh :post tabSep(*this*)
+cat ~/.nix-channels
+#+end_src
+
+#+RESULTS:
+| https://nixos.org/channels/nixpkgs-unstable | nixpkgs |
+*** Add and remove channels
+
+#+begin_src sh :results raw drawer
+echo "Before adding a new channel:"
+cat ~/.nix-channels
+nix-channel --add https://nixos.org/channels/nixpkgs-stable newchan
+echo "After adding a new channel:"
+cat ~/.nix-channels
+nix-channel --remove newchan
+echo "After removing that new channel:"
+cat ~/.nix-channels
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+Before adding a new channel:
+https://nixos.org/channels/nixpkgs-unstable nixpkgs
+After adding a new channel:
+https://nixos.org/channels/nixpkgs-unstable nixpkgs
+https://nixos.org/channels/nixpkgs-stable newchan
+After removing that new channel:
+https://nixos.org/channels/nixpkgs-unstable nixpkgs
+:END:
+
+*** Get channel generations
+**** user channels
+
+You can list user channel generations:
+
+#+begin_src sh
+nix-env --list-generations -p /nix/var/nix/profiles/per-user/$USER/channels
+#+end_src
+
+#+RESULTS:
+| 2 | 2017-10-11 | 22:58:46 |           |
+| 3 | 2018-02-05 | 21:45:40 |           |
+| 4 | 2018-02-25 | 17:58:02 |           |
+| 5 | 2018-02-25 | 18:11:58 | (current) |
+
+**** System channels
+
+To system level channels are asociated with the *root* user, so you should use the some command as in the user channels section, but as *root*
+
+#+begin_src sh :dir /su:root@localhost:/tmp
+nix-env --list-generations -p /nix/var/nix/profiles/per-user/$USER/channels
+#+end_src
+
+#+RESULTS:
+|  1 | 2017-09-16 | 23:42:02 |           |
+|  2 | 2017-10-09 | 22:53:53 |           |
+|  3 | 2017-10-11 | 22:57:50 |           |
+|  4 | 2017-11-01 | 21:33:55 |           |
+|  5 | 2017-11-01 | 22:02:20 |           |
+|  6 | 2017-11-25 | 20:18:35 |           |
+|  7 | 2017-12-02 | 22:45:01 |           |
+|  8 | 2018-02-05 | 22:37:06 |           |
+|  9 | 2018-02-05 | 22:48:15 |           |
+| 10 | 2018-02-05 | 23:30:22 | (current) |
+
+**** Update and rollback
+
+Updating a channel is the declarative alternative to the procedurral ~apt update~ command of the Debian family, which updates your package index.
+
+#+begin_src sh
+nix-channel --update nixpkgs
+nix-env --list-generations -p /nix/var/nix/profiles/per-user/$USER/channels
+#+end_src
+
+#+RESULTS:
+| 2 | 2017-10-11 | 22:58:46 |           |
+| 3 | 2018-02-05 | 21:45:40 |           |
+| 4 | 2018-02-25 | 17:58:02 |           |
+| 5 | 2018-02-25 | 18:11:58 | (current) |
+
+However one notable difference that you can rollback to previous "repository states"
+
+*Note:* You may need to change the ~generation~ variable to something else, and do not forget to change back to the newest state
+
+#+begin_src sh :var generation=5
+nix-env --switch-generation $generation -p /nix/var/nix/profiles/per-user/$USER/channels
+nix-env --list-generations -p /nix/var/nix/profiles/per-user/$USER/channels
+#+end_src
+
+#+RESULTS:
+| 2 | 2017-10-11 | 22:58:46 |           |
+| 3 | 2018-02-05 | 21:45:40 |           |
+| 4 | 2018-02-25 | 17:58:02 |           |
+| 5 | 2018-02-25 | 18:11:58 | (current) |
+
+*Note:* You can use ~nix-channel --rollback [generation]~ too, but it is not consistent with the concept, that *channels states are simply stored in a profile*
+
+** nix-env
+*** list all generations of the current profile
+
+#+begin_src sh :results output table
+nix-env --list-generations
+#+end_src
+
+#+RESULTS:
+| 22 | 2018-01-16 | 17:41:07 |           |
+| 23 | 2018-02-05 | 22:01:16 |           |
+| 24 | 2018-02-09 | 15:53:01 |           |
+| 25 | 2018-02-09 | 19:10:23 |           |
+| 26 | 2018-02-12 | 01:02:51 |           |
+| 27 | 2018-02-12 | 16:34:18 |           |
+| 28 | 2018-02-12 | 17:59:01 |           |
+| 29 | 2018-02-12 | 19:54:30 | (current) |
+
+*** Rollback a generation
+
+#+begin_src sh :results output table
+nix-env --rollback && nix-env --list-generations
+#+end_src
+
+#+RESULTS:
+| 22 | 2018-01-16 | 17:41:07 |           |
+| 23 | 2018-02-05 | 22:01:16 |           |
+| 24 | 2018-02-09 | 15:53:01 |           |
+| 25 | 2018-02-09 | 19:10:23 |           |
+| 26 | 2018-02-12 | 01:02:51 |           |
+| 27 | 2018-02-12 | 16:34:18 |           |
+| 28 | 2018-02-12 | 17:59:01 | (current) |
+| 29 | 2018-02-12 | 19:54:30 |           |
+
+*** Jump to the n-th generation
+
+#+begin_src sh :var n=29 :results output table
+nix-env --switch-generation $n && nix-env --list-generations
+#+end_src
+
+#+RESULTS:
+| 22 | 2018-01-16 | 17:41:07 |           |
+| 23 | 2018-02-05 | 22:01:16 |           |
+| 24 | 2018-02-09 | 15:53:01 |           |
+| 25 | 2018-02-09 | 19:10:23 |           |
+| 26 | 2018-02-12 | 01:02:51 |           |
+| 27 | 2018-02-12 | 16:34:18 |           |
+| 28 | 2018-02-12 | 17:59:01 |           |
+| 29 | 2018-02-12 | 19:54:30 | (current) |
+
+*** List installed derivations in the current generation
+
+#+begin_src sh :results vector
+nix-env --query
+#+end_src
+
+#+RESULTS:
+| alacritty-unstable-2017-09-02 |
+| chromium-60.0.3112.90         |
+| env-base                      |
+| env-elm                       |
+| env-graphics                  |
+| env-haskell                   |
+| env-julia                     |
+| env-python                    |
+| env-vol                       |
+| firefox-56.0.1                |
+| imagej-150                    |
+| texlive-combined-full-2016    |
+
+*** Effect other profile
+You can command nix-env to operate on other profiles with the `-p` switch. It can be very usefull, since it is the olny way to operate on the system profile, becasue the defulat profile for root is still a user profile.
+
+#+begin_src sh :results table :dir /su:root@localhost:/tmp
+nix-env --list-generations -p /nix/var/nix/profiles/system
+#+end_src
+
+#+RESULTS:
+|  94 | 2017-12-02 | 22:47:34 |           |
+|  95 | 2018-01-10 | 14:51:18 |           |
+|  96 | 2018-02-05 | 21:54:11 |           |
+|  97 | 2018-02-05 | 22:11:19 |           |
+|  98 | 2018-02-05 | 22:27:19 |           |
+|  99 | 2018-02-05 | 23:09:43 |           |
+| 100 | 2018-02-05 | 23:31:53 |           |
+| 101 | 2018-02-10 | 12:11:57 |           |
+| 102 | 2018-02-12 | 08:08:08 |           |
+| 103 | 2018-02-12 | 08:15:22 |           |
+| 104 | 2018-02-13 | 09:17:49 |           |
+| 105 | 2018-02-13 | 09:40:54 | (current) |
+
+*** Delete old generations
+
+Delete generations which are older then 9000 days
+
+#+begin_src sh :results silent
+nix-env --delete-generations 9000d
+#+end_src
+
+** nix-store
+*** List all direct dependencies of a derivation
+#+begin_src sh :results vector
+nix-store --query --references `which xterm`
+#+end_src
+
+#+RESULTS:
+| /nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123        |
+| /nix/store/1yd9g0wl9qgf2iysxizwxn7k936jv439-libX11-1.6.5          |
+| /nix/store/a5xbgnxkfrickzjlv2k97faldjnlk643-fontconfig-2.12.1-lib |
+| /nix/store/1hbb2jncnazab64lffrz0w5jz85lz838-libXft-2.3.2          |
+| /nix/store/609zdpfi5kpz2c7mbjcqjmpb4sd2y3j4-ncurses-6.0-20170902  |
+| /nix/store/9zczqhx6y2j5zpc4l9m5r1dlqrk394jd-luit-1.1.1            |
+| /nix/store/djdaj92qkyydkrspmghrfa7msxanm7pr-libICE-1.0.9          |
+| /nix/store/bkwhdymdxxbw6vjjzx3a393qxsfksdvx-libXt-1.1.5           |
+| /nix/store/jgw8hxx7wzkyhb2dr9hwsd9h2caaasdc-bash-4.4-p12          |
+| /nix/store/qx56zn6mc5lcr29s8y10l9ax96m7ynvi-libXmu-1.1.2          |
+| /nix/store/qziarxndwfv7ri0wx470r1zj0vbc9sy0-libXaw-1.0.13         |
+| /nix/store/k3pw7hg2x8p2pzrcgx2ws3fdpz08hz1l-xterm-330             |
+
+*** List all dependencies of a derivation. (its closure)
+
+#+begin_src sh :results drawer
+nix-store --query --requisites  `which xterm`
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123
+/nix/store/0h1myzfdpl0c4wk2ri02imr588bhl1x3-expat-2.2.4
+/nix/store/dpi423sc05rzpa7l2h51mcahfkzr4v1z-libXdmcp-1.1.2
+/nix/store/z7vj2hha5ikgcmf36y0vp65vqw6j4j82-libXau-1.0.8
+/nix/store/xqxn4fnasach6dxb72331z206m134mm1-libxcb-1.12
+/nix/store/1yd9g0wl9qgf2iysxizwxn7k936jv439-libX11-1.6.5
+/nix/store/dl66jvc19im9lqslzqszsp2gif2y0y8i-zlib-1.2.11
+/nix/store/3zq240hgv6b238q84nzi30nk8b7rzhzr-libpng-apng-1.6.34
+/nix/store/50kdqp7a273c2aqf75nf5zk7kgi07rzi-libXrender-0.9.10
+/nix/store/bqd0pk2ryvw0b47r7k23k13jx8ih2165-bzip2-1.0.6.0.1
+/nix/store/6gj02qh9vygs3z7inzyjbyi3jwx6ir4h-freetype-2.7.1
+/nix/store/8gn2b5vvlazg608cj1y5l4igp9rckmnq-dejavu-fonts-minimal-2.37
+/nix/store/a5xbgnxkfrickzjlv2k97faldjnlk643-fontconfig-2.12.1-lib
+/nix/store/1hbb2jncnazab64lffrz0w5jz85lz838-libXft-2.3.2
+/nix/store/1kh7wnpvli37advh5n2355jywmm71i01-util-linux-2.31
+/nix/store/3ihbxxy6gw000bz2c0lz02366wsxfpi0-libfontenc-1.1.3
+/nix/store/609zdpfi5kpz2c7mbjcqjmpb4sd2y3j4-ncurses-6.0-20170902
+/nix/store/8gdmkr38zjc7vgcigh1laiq98a12cy3d-libXext-1.3.3
+/nix/store/9zczqhx6y2j5zpc4l9m5r1dlqrk394jd-luit-1.1.1
+/nix/store/djdaj92qkyydkrspmghrfa7msxanm7pr-libICE-1.0.9
+/nix/store/vsasj9gcplwc6jkzspkx01vha46gyq3g-libSM-1.2.2
+/nix/store/bkwhdymdxxbw6vjjzx3a393qxsfksdvx-libXt-1.1.5
+/nix/store/jgw8hxx7wzkyhb2dr9hwsd9h2caaasdc-bash-4.4-p12
+/nix/store/qx56zn6mc5lcr29s8y10l9ax96m7ynvi-libXmu-1.1.2
+/nix/store/m21w08vydl0jbv24p3x7wwpxfc0749ng-libXpm-3.5.12
+/nix/store/qziarxndwfv7ri0wx470r1zj0vbc9sy0-libXaw-1.0.13
+/nix/store/k3pw7hg2x8p2pzrcgx2ws3fdpz08hz1l-xterm-330
+:END:
+
+*** List all reverse dependecies of a derivation
+
+#+begin_src sh :results drawer
+nix-store --query --referers `which node`
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+/nix/store/gmjshjxysnhj23h4dwz5cmv4dcsv0nwa-nodejs-6.12.2
+/nix/store/6lbkz7vnd0sh7r1g40a6h8zy3bqpf1xj-node-node2nix-1.5.1
+/nix/store/w7n6dm26dbrakfh2iaq4aw5vw0ixzppg-node-npm2nix-5.12.0
+/nix/store/02mz4xjj2n3ysrv2gg5zw8ksg6ssmdi3-system-path
+/nix/store/0mi5jj05fg1l1n1il88srgnrh16k7690-system-path
+/nix/store/1igndl7kqpkfhalpg9pmcd0a8395bid6-system-path
+/nix/store/ffl6d8ym01427a6vb471am7rmbjmwm20-elm-repl-0.18
+/nix/store/1k1f70dhgmrdnxcmhn1pxkha2ydjzb5h-reginfo
+/nix/store/2242c0fhy92az890za5apmi98nvayk05-system-path
+/nix/store/2hnik45nf06g1zx0992fzmlxi9xdj2wn-system-path
+/nix/store/4lmszwsic3cgyqr6a2dvbjh259csdyqd-system-path
+/nix/store/6v1vz33azzl9vw4a9qncwkdyzhz9xvg7-system-path
+/nix/store/6x9dnypsy58ni39sif1883z63i28dqsn-system-path
+/nix/store/7jm84l1cnmlj39hkx69x32nwmv7fiqjb-system-path
+/nix/store/7wv766jvxwyyrjrpy7c339wxpnkvgfhc-system-path
+/nix/store/sn06ip0wcjvg62364cxr4vl0zql8p01y-system-path
+/nix/store/8ghq81wgamhzj096vafmxa16g2jfmb8q-reginfo
+/nix/store/9kiaz8liiw55ihps0h2igjhcfiw7d1ks-reginfo
+/nix/store/aa49swxmivanwbh1qvbrf01vaj1sr4jb-reginfo
+/nix/store/bf1zvgjm5ki3mczipjvc9bjaqjsfjy2q-reginfo
+/nix/store/bpak9xyh9bwjgk70xss9nfbkdybjvzzc-reginfo
+/nix/store/bvw4ami7v26nf5wac5wmyjlr9gzrp3mx-reginfo
+/nix/store/d32w74qz853s939r4wiid9vzpmxkwr58-system-path
+/nix/store/f5rvgfms49z5jvp3v0nk7ci87fhkx4fd-system-path
+/nix/store/fy4wxr1m2zypfvznby6bq60jkvq29k9h-system-path
+/nix/store/f8xbzr620i61713v8wjvg02kls8zbwbq-reginfo
+/nix/store/gbc9rfm5myz34qjg7r1dq4vga8gv1h7p-system-path
+/nix/store/hp84avxj1dv4ysdgw5b50gv24djl0miv-reginfo
+/nix/store/i4jqkg9845bdh0y6svbf2iwxlm6vy6rg-system-path
+/nix/store/ipsjyh8zqsx28l9ny20363cammam68y7-reginfo
+/nix/store/jvas004rhhi87gif0bwih2a7rz00hffl-system-path
+/nix/store/kq3j6b4bzwsm51xhn71w1ngiwwipp90v-reginfo
+/nix/store/nghzv7jw1sb21lpvzywvf7psqbcb64jb-system-path
+/nix/store/nsk1nmkwy9whbxjlf6z75chmb21628d5-system-path
+/nix/store/p4x33dw4z45pgq3k5nzn2wigiazkl6b5-system-path
+/nix/store/qwrlrg6vlwh8lxrzavsn0rmqz2hnp4a4-reginfo
+/nix/store/rrrbig7n2zx2d2mjala7d3x3f4551576-system-path
+/nix/store/vwc7fhlf3hy7sxbb73wfka5d3n5x5qg1-system-path
+/nix/store/w1hfiqqmpw1fmkmfs3i90qz4fx5g8xr1-reginfo
+/nix/store/yi42qiinz8pcfqcrixvwbc7lxzf9gaan-system-path
+:END:
+
+*** Print reference graph of a given executable/source path
+#+begin_src sh :results drawer
+nix-store --query --tree `which git`
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+/nix/store/9bzdjxa0h1niiprs98jncxkddpmlz0gi-git-2.15.0
++---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
++---/nix/store/0h1myzfdpl0c4wk2ri02imr588bhl1x3-expat-2.2.4
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/0h1myzfdpl0c4wk2ri02imr588bhl1x3-expat-2.2.4 [...]
++---/nix/store/1j85y9zswjnya4lxsw68agdn6nxg907r-openssl-1.0.2n
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/1j85y9zswjnya4lxsw68agdn6nxg907r-openssl-1.0.2n [...]
++---/nix/store/4bh7qhnrjk8cgd1bh7nr0glbga0aasdx-coreutils-8.28
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/ac082jcsg31763mbgiqlirhgsygimn1x-attr-2.4.47
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/ac082jcsg31763mbgiqlirhgsygimn1x-attr-2.4.47 [...]
+|   +---/nix/store/mcsl18halr6lx9b4d35ghrx71v7mw2k9-acl-2.2.52
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/ac082jcsg31763mbgiqlirhgsygimn1x-attr-2.4.47 [...]
+|   |   +---/nix/store/mcsl18halr6lx9b4d35ghrx71v7mw2k9-acl-2.2.52 [...]
+|   +---/nix/store/4bh7qhnrjk8cgd1bh7nr0glbga0aasdx-coreutils-8.28 [...]
++---/nix/store/dl66jvc19im9lqslzqszsp2gif2y0y8i-zlib-1.2.11
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
++---/nix/store/5gmg7r1hfwlpa5yynvld0wgghfvf73jf-curl-7.58.0
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/1j85y9zswjnya4lxsw68agdn6nxg907r-openssl-1.0.2n [...]
+|   +---/nix/store/dl66jvc19im9lqslzqszsp2gif2y0y8i-zlib-1.2.11 [...]
+|   +---/nix/store/kia7mz9lni5517df8l2576fcpq4vskv3-libssh2-1.8.0
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/1j85y9zswjnya4lxsw68agdn6nxg907r-openssl-1.0.2n [...]
+|   |   +---/nix/store/dl66jvc19im9lqslzqszsp2gif2y0y8i-zlib-1.2.11 [...]
+|   |   +---/nix/store/kia7mz9lni5517df8l2576fcpq4vskv3-libssh2-1.8.0 [...]
+|   +---/nix/store/vkzzy9r3h6zjz6hqq8d8dr9r5js0spad-nghttp2-1.20.0-lib
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/vkzzy9r3h6zjz6hqq8d8dr9r5js0spad-nghttp2-1.20.0-lib [...]
+|   +---/nix/store/5gmg7r1hfwlpa5yynvld0wgghfvf73jf-curl-7.58.0 [...]
++---/nix/store/93hb9j4n685dr698qq0j7ip0p2mss4lm-gzip-1.8
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
++---/nix/store/jgw8hxx7wzkyhb2dr9hwsd9h2caaasdc-bash-4.4-p12
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/jgw8hxx7wzkyhb2dr9hwsd9h2caaasdc-bash-4.4-p12 [...]
++---/nix/store/cjj83sh12bzrzhpyz47p09hr3qzipvrb-openssh-7.5p1
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/1j85y9zswjnya4lxsw68agdn6nxg907r-openssl-1.0.2n [...]
+|   +---/nix/store/609zdpfi5kpz2c7mbjcqjmpb4sd2y3j4-ncurses-6.0-20170902
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/609zdpfi5kpz2c7mbjcqjmpb4sd2y3j4-ncurses-6.0-20170902 [...]
+|   +---/nix/store/7z3fmkb2ias4p2acj7j5cdx1rklb71mz-libedit-20160903-3.1
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/609zdpfi5kpz2c7mbjcqjmpb4sd2y3j4-ncurses-6.0-20170902 [...]
+|   |   +---/nix/store/7z3fmkb2ias4p2acj7j5cdx1rklb71mz-libedit-20160903-3.1 [...]
+|   +---/nix/store/dl66jvc19im9lqslzqszsp2gif2y0y8i-zlib-1.2.11 [...]
+|   +---/nix/store/jgw8hxx7wzkyhb2dr9hwsd9h2caaasdc-bash-4.4-p12 [...]
+|   +---/nix/store/xbq90khvd50d6j15bvzzwhj6znq5qydw-linux-pam-1.2.1
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/jgw8hxx7wzkyhb2dr9hwsd9h2caaasdc-bash-4.4-p12 [...]
+|   |   +---/nix/store/wcr766s7lc0w3b834wm4pfj316kf5pd5-cracklib-2.9.6
+|   |   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   |   +---/nix/store/dl66jvc19im9lqslzqszsp2gif2y0y8i-zlib-1.2.11 [...]
+|   |   |   +---/nix/store/jgw8hxx7wzkyhb2dr9hwsd9h2caaasdc-bash-4.4-p12 [...]
+|   |   |   +---/nix/store/wcr766s7lc0w3b834wm4pfj316kf5pd5-cracklib-2.9.6 [...]
+|   |   +---/nix/store/xbq90khvd50d6j15bvzzwhj6znq5qydw-linux-pam-1.2.1 [...]
+|   +---/nix/store/cjj83sh12bzrzhpyz47p09hr3qzipvrb-openssh-7.5p1 [...]
++---/nix/store/q652rzgj7w1vskqz2dvg255fgqwzlg4m-perl-HTML-Parser-3.72
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/qdw9w85x7v14bfwdi5w2j09jsx5xfn7r-perl-HTML-Tagset-3.20
+|   |   +---/nix/store/qdw9w85x7v14bfwdi5w2j09jsx5xfn7r-perl-HTML-Tagset-3.20 [...]
+|   +---/nix/store/q652rzgj7w1vskqz2dvg255fgqwzlg4m-perl-HTML-Parser-3.72 [...]
++---/nix/store/dwdakv33xavb795hhpgbc5xgfz3hi891-perl-CGI-4.36
+|   +---/nix/store/q652rzgj7w1vskqz2dvg255fgqwzlg4m-perl-HTML-Parser-3.72 [...]
+|   +---/nix/store/dwdakv33xavb795hhpgbc5xgfz3hi891-perl-CGI-4.36 [...]
++---/nix/store/h6vf6alpgnynlx1w9xwlaqhnjybjvy2x-gnugrep-3.1
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/md5n8lc8mqa3q66kzdrcmy7xsaq2mjgf-pcre-8.41
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/md5n8lc8mqa3q66kzdrcmy7xsaq2mjgf-pcre-8.41 [...]
+|   +---/nix/store/h6vf6alpgnynlx1w9xwlaqhnjybjvy2x-gnugrep-3.1 [...]
++---/nix/store/i3bx1iw2d0i3vh9sa1nf92ynlrw324w8-python-2.7.14
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/1j85y9zswjnya4lxsw68agdn6nxg907r-openssl-1.0.2n [...]
+|   +---/nix/store/44pga8rb4ldvijrk853mxf4hqib089wn-sqlite-3.21.0
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/44pga8rb4ldvijrk853mxf4hqib089wn-sqlite-3.21.0 [...]
+|   +---/nix/store/4bh7qhnrjk8cgd1bh7nr0glbga0aasdx-coreutils-8.28 [...]
+|   +---/nix/store/609zdpfi5kpz2c7mbjcqjmpb4sd2y3j4-ncurses-6.0-20170902 [...]
+|   +---/nix/store/6wd5kxh79jnyaixyxk75zzv82kl443ab-db-5.3.28
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/dk0n769l985raba2nrya2q7ivspafj6f-gcc-6.4.0-lib
+|   |   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   |   +---/nix/store/dk0n769l985raba2nrya2q7ivspafj6f-gcc-6.4.0-lib [...]
+|   |   +---/nix/store/6wd5kxh79jnyaixyxk75zzv82kl443ab-db-5.3.28 [...]
+|   +---/nix/store/a18nnq9b1vyh9f7f71w5lmip91cqr1px-gdbm-1.13
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/a18nnq9b1vyh9f7f71w5lmip91cqr1px-gdbm-1.13 [...]
+|   +---/nix/store/af9085bk7pgdyqvgkj575ymzm9pajy41-readline-6.3p08
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/609zdpfi5kpz2c7mbjcqjmpb4sd2y3j4-ncurses-6.0-20170902 [...]
+|   +---/nix/store/bqd0pk2ryvw0b47r7k23k13jx8ih2165-bzip2-1.0.6.0.1
+|   |   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   |   +---/nix/store/bqd0pk2ryvw0b47r7k23k13jx8ih2165-bzip2-1.0.6.0.1 [...]
+|   +---/nix/store/dl66jvc19im9lqslzqszsp2gif2y0y8i-zlib-1.2.11 [...]
+|   +---/nix/store/jgw8hxx7wzkyhb2dr9hwsd9h2caaasdc-bash-4.4-p12 [...]
+|   +---/nix/store/i3bx1iw2d0i3vh9sa1nf92ynlrw324w8-python-2.7.14 [...]
++---/nix/store/i6xckn2cfmwry0rnyqpxf14xynghsnls-perl-5.24.3
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/4bh7qhnrjk8cgd1bh7nr0glbga0aasdx-coreutils-8.28 [...]
+|   +---/nix/store/i6xckn2cfmwry0rnyqpxf14xynghsnls-perl-5.24.3 [...]
++---/nix/store/l8r5pnsv5nxzi0x5qrsqvngr8kk36qpi-gettext-0.19.8
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/dk0n769l985raba2nrya2q7ivspafj6f-gcc-6.4.0-lib [...]
+|   +---/nix/store/jgw8hxx7wzkyhb2dr9hwsd9h2caaasdc-bash-4.4-p12 [...]
+|   +---/nix/store/l8r5pnsv5nxzi0x5qrsqvngr8kk36qpi-gettext-0.19.8 [...]
++---/nix/store/qh065xfqg3d60dmyny4g9dgslfhgh8x6-perl-URI-1.72
+|   +---/nix/store/qh065xfqg3d60dmyny4g9dgslfhgh8x6-perl-URI-1.72 [...]
++---/nix/store/msp83an3lqb6rlkqigy9khsgrf4k6200-perl-libwww-perl-6.15
+|   +---/nix/store/qh065xfqg3d60dmyny4g9dgslfhgh8x6-perl-URI-1.72 [...]
+|   +---/nix/store/08j9lz7p4bp5rf1221mpa1ry86nn2z5g-perl-WWW-RobotRules-6.02
+|   |   +---/nix/store/qh065xfqg3d60dmyny4g9dgslfhgh8x6-perl-URI-1.72 [...]
+|   |   +---/nix/store/08j9lz7p4bp5rf1221mpa1ry86nn2z5g-perl-WWW-RobotRules-6.02 [...]
+|   +---/nix/store/qbb2l6bygfvrs9lsa8s9arxw5xbm5zns-perl-Encode-Locale-1.05
+|   |   +---/nix/store/qbb2l6bygfvrs9lsa8s9arxw5xbm5zns-perl-Encode-Locale-1.05 [...]
+|   +---/nix/store/rs77m2p0i6zpzasjrb0fc29vc55b8mg2-perl-IO-HTML-1.001
+|   |   +---/nix/store/rs77m2p0i6zpzasjrb0fc29vc55b8mg2-perl-IO-HTML-1.001 [...]
+|   +---/nix/store/wkxmcxyzcwvrydj7l6mp57rjxgmrnzg1-perl-LWP-MediaTypes-6.02
+|   |   +---/nix/store/wkxmcxyzcwvrydj7l6mp57rjxgmrnzg1-perl-LWP-MediaTypes-6.02 [...]
+|   +---/nix/store/z9dcr7cgd8r274h826ln1abr8121a2c9-perl-HTTP-Date-6.02
+|   |   +---/nix/store/z9dcr7cgd8r274h826ln1abr8121a2c9-perl-HTTP-Date-6.02 [...]
+|   +---/nix/store/lhw72d27m44438crqwp23z3h8vjhcnlb-perl-HTTP-Message-6.11
+|   |   +---/nix/store/qbb2l6bygfvrs9lsa8s9arxw5xbm5zns-perl-Encode-Locale-1.05 [...]
+|   |   +---/nix/store/qh065xfqg3d60dmyny4g9dgslfhgh8x6-perl-URI-1.72 [...]
+|   |   +---/nix/store/rs77m2p0i6zpzasjrb0fc29vc55b8mg2-perl-IO-HTML-1.001 [...]
+|   |   +---/nix/store/wkxmcxyzcwvrydj7l6mp57rjxgmrnzg1-perl-LWP-MediaTypes-6.02 [...]
+|   |   +---/nix/store/z9dcr7cgd8r274h826ln1abr8121a2c9-perl-HTTP-Date-6.02 [...]
+|   |   +---/nix/store/lhw72d27m44438crqwp23z3h8vjhcnlb-perl-HTTP-Message-6.11 [...]
+|   +---/nix/store/2bh381463qa2wvq1gly76m06a38mggp1-perl-HTTP-Negotiate-6.01
+|   |   +---/nix/store/lhw72d27m44438crqwp23z3h8vjhcnlb-perl-HTTP-Message-6.11 [...]
+|   |   +---/nix/store/2bh381463qa2wvq1gly76m06a38mggp1-perl-HTTP-Negotiate-6.01 [...]
+|   +---/nix/store/afl7lqzzwklh54sh6y3h30lsfg785xz0-perl-HTTP-Daemon-6.01
+|   |   +---/nix/store/wkxmcxyzcwvrydj7l6mp57rjxgmrnzg1-perl-LWP-MediaTypes-6.02 [...]
+|   |   +---/nix/store/z9dcr7cgd8r274h826ln1abr8121a2c9-perl-HTTP-Date-6.02 [...]
+|   |   +---/nix/store/lhw72d27m44438crqwp23z3h8vjhcnlb-perl-HTTP-Message-6.11 [...]
+|   |   +---/nix/store/afl7lqzzwklh54sh6y3h30lsfg785xz0-perl-HTTP-Daemon-6.01 [...]
+|   +---/nix/store/i6xckn2cfmwry0rnyqpxf14xynghsnls-perl-5.24.3 [...]
+|   +---/nix/store/qdw9w85x7v14bfwdi5w2j09jsx5xfn7r-perl-HTML-Tagset-3.20 [...]
+|   +---/nix/store/q652rzgj7w1vskqz2dvg255fgqwzlg4m-perl-HTML-Parser-3.72 [...]
+|   +---/nix/store/rximf2idvx8v2hm3m018mkmpx284qvl5-perl-File-Listing-6.04
+|   |   +---/nix/store/z9dcr7cgd8r274h826ln1abr8121a2c9-perl-HTTP-Date-6.02 [...]
+|   |   +---/nix/store/rximf2idvx8v2hm3m018mkmpx284qvl5-perl-File-Listing-6.04 [...]
+|   +---/nix/store/v0bjl0xidfzhcxmq3ricvnxs0d4q0ssf-perl-Net-HTTP-6.12
+|   |   +---/nix/store/qh065xfqg3d60dmyny4g9dgslfhgh8x6-perl-URI-1.72 [...]
+|   |   +---/nix/store/v0bjl0xidfzhcxmq3ricvnxs0d4q0ssf-perl-Net-HTTP-6.12 [...]
+|   +---/nix/store/w49xx62vhvnimzcd265m5jsd9nr48mks-perl-HTTP-Cookies-6.01
+|   |   +---/nix/store/z9dcr7cgd8r274h826ln1abr8121a2c9-perl-HTTP-Date-6.02 [...]
+|   |   +---/nix/store/lhw72d27m44438crqwp23z3h8vjhcnlb-perl-HTTP-Message-6.11 [...]
+|   |   +---/nix/store/w49xx62vhvnimzcd265m5jsd9nr48mks-perl-HTTP-Cookies-6.01 [...]
+|   +---/nix/store/msp83an3lqb6rlkqigy9khsgrf4k6200-perl-libwww-perl-6.15 [...]
++---/nix/store/n0yxkzbl475xjjg84mry4yxys8wxfl13-pcre2-10.23
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/n0yxkzbl475xjjg84mry4yxys8wxfl13-pcre2-10.23 [...]
++---/nix/store/nxdjfd4mjxhl8bymkiv01afwfad1q50h-perl-TermReadKey-2.37
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/nxdjfd4mjxhl8bymkiv01afwfad1q50h-perl-TermReadKey-2.37 [...]
++---/nix/store/xxsx4amblqfnd2544gk5rk2xd935aihr-gawk-4.1.4
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/xxsx4amblqfnd2544gk5rk2xd935aihr-gawk-4.1.4 [...]
++---/nix/store/za5n7hg16pnkvdrnnh7fxy9hsx9pp2i6-gnused-4.4
+|   +---/nix/store/d54amiggq6bw23jw6mdsgamvs6v1g3bh-glibc-2.25-123 [...]
+|   +---/nix/store/za5n7hg16pnkvdrnnh7fxy9hsx9pp2i6-gnused-4.4 [...]
++---/nix/store/9bzdjxa0h1niiprs98jncxkddpmlz0gi-git-2.15.0 [...]
+:END:
+
+*** Display reference graph of a given executable/source path
+#+begin_src sh :results drawer
+tmpFile=`mktemp`
+
+nix-store -q --graph `which git` > tmpFile
+if [ -s tmpFile  ];then
+
+kgraphviewer tmpFile
+fi
+#+end_src
+
+***  Get the size of a derivation
+
+#+begin_src sh :results output scalar
+nix-store --query --size `which node`
+#+end_src
+
+#+RESULTS:
+: 35206008
+
+*** Print garbage collector  roots which contains a store path
+
+#+begin_src sh :results value vector
+nix-store --query --roots `which node`
+#+end_src
+
+#+RESULTS:
+| /etc/nixos/pass/result                                            |                 |
+| /home/attila/projects/nixos-vm/result                             |                 |
+| /nix/var/nix/profiles/system-100-link                             |                 |
+| /nix/var/nix/profiles/system-101-link                             |                 |
+| /nix/var/nix/profiles/system-102-link                             |                 |
+| /nix/var/nix/profiles/system-103-link                             |                 |
+| /nix/var/nix/profiles/system-104-link                             |                 |
+| /nix/var/nix/profiles/system-105-link                             |                 |
+| /nix/var/nix/profiles/system-99-link                              |                 |
+| /nix/var/nix/profiles/system-profiles/add-sqlite-1-link           |                 |
+| /nix/var/nix/profiles/system-profiles/enable-virtualbox-1-link    |                 |
+| /nix/var/nix/profiles/system-profiles/install                     | ditaa-1-link    |
+| /nix/var/nix/profiles/system-profiles/install                     | plantuml-1-link |
+| /nix/var/nix/profiles/system-profiles/install-kgraphviewer-1-link |                 |
+| /nix/var/nix/profiles/system-profiles/install-mkpasswd-1-link     |                 |
+| /nix/var/nix/profiles/system-profiles/install-openssl-1-link      |                 |
+| /nix/var/nix/profiles/system-profiles/install-poppler-1-link      |                 |
+| /nix/var/nix/profiles/system-profiles/install-virtualbox-1-link   |                 |
+| /nix/var/nix/profiles/system-profiles/install-zip-1-link          |                 |
+| /nix/var/nix/profiles/system-profiles/passwd-file-test-1-link     |                 |
+| /nix/var/nix/profiles/system-profiles/root-passwd-1-link          |                 |
+| /nix/var/nix/profiles/system-profiles/unmutable-users-1-link      |                 |
+| /nix/var/nix/profiles/system-profiles/unmutable-users-2-link      |                 |
+| /nix/var/nix/profiles/system-profiles/update-hosts-1-link         |                 |
+| /nix/var/nix/profiles/system-profiles/user-passwd-1-link          |                 |
+| /nix/var/nix/profiles/system-profiles/vagrant-1-link              |                 |
+| /run/booted-system                                                |                 |
+| /run/current-system                                               |                 |
+|                                                                   |                 |
+** environmental variables
+***  IN_NIX_SHELL
+
+~1~ if inside a nix shell environment, empty string otherwise
+
+#+begin_src sh
+echo "IN_NIX_SHELL: $IN_NIX_SHELL"
+nix-shell --command 'echo "IN_NIX_SHELL: $IN_NIX_SHELL"' nix-modules/default.nix
+#+end_src
+
+#+RESULTS:
+| IN_NIX_SHELL: |   |
+| IN_NIX_SHELL: | 1 |
+
+
+* Nix as a language
+** Basics
+*** Types
+**** Available types
+
+#+begin_src nix
+builtins.typeOf null # => "null"
+builtins.typeOf 1 # => "int"
+builtins.typeOf (-1) # => "int"
+builtins.typeOf true # => "bool"
+builtins.typeOf false # => "bool"
+builtins.typeOf "foo" # => "string"
+builtins.typeOf ''foo'' # => "string"
+builtins.typeOf /tmp # => "path"
+builtins.typeOf https://github.com/NixOS/nixpkgs-channels/archive/nixos-14.12.tar.gz # => "string"
+builtins.typeOf {} # => "set"
+builtins.typeOf [1 2 3] # => "list"
+builtins.typeOf (x: y: x*y) # => "lambda"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+"null"
+"int"
+"int"
+"bool"
+"bool"
+"string"
+"string"
+"path"
+"string"
+"set"
+"list"
+"lambda"
+#+end_example
+
+*Notes*
+- Negative integers must be written inside parenthesis.
+- URLs are strings, regardless they are highlighted as path
+
+**** Testing types
+
+#+begin_src nix
+builtins.isInt 1 # => true
+builtins.isBool true # => true
+builtins.isBool false # => true
+builtins.isString "foo" # => true
+builtins.typeOf /tmp == "path" # => true
+builtins.isAttrs {} # => true
+builtins.isList [] # => true
+builtins.isFunction (x: x*x) # => true
+builtins.isInt "foo" # => false
+#+end_src
+
+#+RESULTS:
+: true
+: true
+: true
+: true
+: true
+: true
+: true
+: true
+: false
+
+*** Arthimetric operations
+
+Basic operators
+
+#+begin_src nix
+1 + 1
+0 - 5
+3 * 3
+6 / 3
+#+end_src
+
+#+RESULTS:
+: 2
+: -5
+: 9
+: 2
+
+and since nix is functional language:
+
+#+begin_src nix
+builtins.add 1 1
+builtins.sub 0 5
+builtins.mul 3 3
+builtins.div 6 3
+#+end_src
+
+#+RESULTS:
+: 2
+: -5
+: 9
+: 2
+
+
+Using "/" in a literal will define it as
+
+#+begin_src nix
+3/3
+#+end_src
+
+#+RESULTS:
+: 1
+
+*** Logical operation
+**** Logical AND
+
+#+begin_src nix
+true  && true
+true  && false
+false && true
+false && false
+#+end_src
+
+#+RESULTS:
+: true
+: false
+: false
+: false
+
+**** Logical OR
+
+#+begin_src nix
+true  || true
+true  || false
+false || true
+false || false
+#+end_src
+
+#+RESULTS:
+: true
+: true
+: true
+: false
+
+**** Logical XOR
+
+There is no XOR operator, but it is easy to make a function:
+
+#+begin_src nix
+xor = (p1: p2: (p1 || p2) && !(p1 && p2))
+xor true true
+xor true false
+xor false true
+xor false false
+#+end_src
+
+#+RESULTS:
+: false
+: true
+: true
+: false
+
+**** Logical implication
+
+#+begin_src nix
+true  -> true
+true  -> false
+false -> true
+false -> false
+#+end_src
+
+#+RESULTS:
+: true
+: false
+: true
+: true
+
+*** Varible binding and naming
+****  Naming rules
+Dash is supported in identifiets
+
+#+begin_src nix
+first-num = 3
+second-num = 5
+first-num + second-num
+#+end_src
+
+#+RESULTS:
+: 8
+**** let-in binding
+
+#+begin_src nix
+let
+  x = "foo";
+  y = "bar";
+in x + y
+#+end_src
+
+#+RESULTS:
+:             x = "foo";
+:             y = "bar";
+:           in x + y
+: "foobar"
+
+**** Inject attributes inside a collection using ~with~
+
+#+begin_src nix
+mySet = {foo = 3; bar = 4;}
+with mySet; [foo bar]
+with mySet; {foobar = foo + bar;}
+#+end_src
+
+#+RESULTS:
+: [ 3 4 ]
+: { foobar = 7; }
+
+*** Strings
+**** String length
+
+#+begin_src nix
+builtins.stringLength "foo bar"
+#+end_src
+
+#+RESULTS:
+: 7
+
+**** Concat strings
+
+#+begin_src nix
+builtins.concatStringsSep "/" ["nix" "var" "nix"]
+#+end_src
+
+#+RESULTS:
+: "nix/var/nix"
+****  Interpolate strings
+
+#+begin_src nix
+var =  84 / 2
+"The mining of life ${toString var}"
+"The mining of life \${toString var}"
+#+end_src
+
+#+RESULTS:
+: "The mining of life 42"
+: "The mining of life ${toString var}"
+
+****  RegEx match
+
+#+begin_src nix
+builtins.match "fx+" "foo"
+builtins.match "fo+" "fooooo"
+builtins.match "[[:space:]]+([[:upper:]]+)[[:space:]]+" "  FOO   "
+builtins.match "a(b)(c)" "abc"
+#+end_src
+
+#+RESULTS:
+: null
+: [ ]
+: [ "FOO" ]
+: [ "b" "c" ]
+
+**** Replace in strings
+
+#+begin_src nix
+builtins.replaceStrings ["oo" "a"] ["a" "i"] "foobar"
+#+end_src
+
+#+RESULTS:
+: "fabir"
+
+**** Split strings
+
+#+begin_src nix
+builtins.split "([[:upper:]]+)" "  FOO   "
+#+end_src
+
+*** Lists
+**** List length
+
+#+begin_src nix
+builtins.length [1 2 3 4]
+#+end_src
+
+#+RESULTS:
+: 4
+
+**** Test if list has a given element
+
+#+begin_src nix
+builtins.elem 30 [10 20 30]
+builtins.elem 40 [10 20 30]
+#+end_src
+
+#+RESULTS:
+: true
+: false
+
+**** Head and tail of lists
+
+#+begin_src nix
+builtins.head [1 2 3]
+builtins.tail [1 2 3]
+#+end_src
+
+#+RESULTS:
+: 1
+: [ 2 3 ]
+
+**** Get/acces nth value from list
+
+#+begin_src nix
+myList = ["foo" "bar" "foobar"]
+builtins.elemAt myList 0
+builtins.elemAt myList 2
+#+end_src
+
+#+RESULTS:
+: "foo"
+: "foobar"
+
+Out of bound error:
+
+#+begin_src nix
+myList = ["foo" "bar" "foobar"]
+builtins.elemAt myList 3
+#+end_src
+
+**** Concat lists
+
+#+begin_src nix
+builtins.concatLists [[1 2 3] [4 5 6] [7 8 9]]
+[1 2 3] ++ [4 5 6] ++ [7 8 9]
+#+end_src
+
+#+RESULTS:
+: [ 1 2 3 4 5 6 7 8 9 ]
+: [ 1 2 3 4 5 6 7 8 9 ]
+
+**** "Append" lists
+
+There is no built-in append function, but it is easy to implement using concatanation
+
+#+begin_src nix
+append = (coll: val: coll ++ [val])
+append [1 2] 3
+#+end_src
+
+#+RESULTS:
+: [ 1 2 3 ]
+
+**** map lists
+
+#+begin_src nix
+builtins.map (x: x * x) [0 1 2 3 4]
+#+end_src
+
+#+RESULTS:
+: [ 0 1 4 9 16 ]
+
+**** Sort lists
+
+#+begin_src nix
+builtins.sort builtins.lessThan [ 345 22 176 567 11 0 33 ]
+#+end_src
+
+#+RESULTS:
+: [ 0 11 22 33 176 345 567 ]
+
+**** any and all for lists
+
+#+begin_src nix
+builtins.any (x : x < 10) [1 2 15]
+builtins.any (x : x < 10) [16 11 20]
+#+end_src
+
+#+begin_src nix
+builtins.all (x : x < 10) [1 2 3]
+builtins.all (x : x < 10) [1 2 50]
+#+end_src
+
+#+RESULTS:
+: true
+: false
+
+****  Filter lists
+
+#+begin_src nix
+builtins.filter (x : x > 0) [33 (-12) 23 (-1)]
+#+end_src
+
+#+RESULTS:
+: [ 33 23 ]
+
+**** Folding / reduce
+
+#+begin_src nix
+builtins.foldl' (coll: val: coll ++ [val]) [] [1 2 3 4 5 6]
+#+end_src
+
+#+RESULTS:
+: [ 1 2 3 4 5 6 ]
+
+**** Generate list (like ranges)
+
+#+begin_src nix
+builtins.genList (x: x) 5
+builtins.genList (x: x * x) 5
+#+end_src
+
+#+RESULTS:
+: [ 0 1 2 3 4 ]
+: [ 0 1 4 9 16 ]
+
+*** Sets
+**** Inherit value from parent scope
+
+#+begin_src nix
+let x = 123; y = 42; in
+{ inherit x y;
+  z = 456;
+}
+#+end_src
+
+#+RESULTS:
+:           { inherit x y;
+:             z = 456;
+:           }
+: { x = 123; y = 42; z = 456; }
+
+**** String interpolation in attribute names
+
+When the interpolation result is null, the attribute will not be added
+
+#+begin_src nix
+yo = "foo"
+{"bar${yo}" = 1; x = 2;}
+{${if true then null else "no-this"} = 1; x = 2;}
+#+end_src
+
+#+RESULTS:
+: { barfoo = 1; x = 2; }
+: { x = 2; }
+
+**** List out Names/keys and values
+
+#+begin_src nix
+builtins.attrNames { y = 1; x = "foo"; }
+builtins.attrValues { y = 1; x = "foo"; }
+#+end_src
+
+#+RESULTS:
+: [ "x" "y" ]
+: [ "foo" 1 ]
+
+**** Test if set contains name
+
+#+begin_src nix
+mySet = { y = 1; x = "foo"; }
+mySet ? x
+mySet ? yo
+builtins.hasAttr "x" mySet
+#+end_src
+
+#+RESULTS:
+: true
+: false
+: true
+
+**** get/acces set attribute
+
+#+begin_src nix
+mySet = {foo = {yo = 24; }; bar = 12;}
+mySet.bar
+mySet.foo.yo
+mySet.noSuchAValue or "fallback value"
+builtins.getAttr "bar" mySet
+if mySet ? foo.yo then mySet.foo.yo else "no such a value"
+if mySet ? foo.yo then mySet.foo.yo else "no such a value"
+if mySet ? foo.noName then mySet.foo.yo else "no such a value"
+#+end_src
+
+#+RESULTS:
+: 12
+: 24
+: "fallback value"
+: 12
+: 24
+: 24
+: "no such a value"
+
+**** Remove attributes
+
+It is not a problem if you try to remove a non existent attribute.
+
+#+begin_src nix
+removeAttrs { x = 1; y = 2; z = 3; } [ "a" "x" "z" ]
+#+end_src
+
+#+RESULTS:
+: { y = 2; }
+
+**** Merge  sets
+
+The latter set attributes take precedence, so on name collision they will be in the new set.
+
+#+begin_src nix
+{foo = 4; bar = 7;} // {foo = 11; foobar = 14;}
+#+end_src
+
+#+RESULTS:
+: { bar = 7; foo = 11; foobar = 14; }
+
+**** List to set
+
+#+begin_src nix
+builtins.listToAttrs [{name = "x"; value = 2;} {name = "y"; value = 4;}]
+#+end_src
+
+#+RESULTS:
+: { x = 2; y = 4; }
+
+**** Recursive sets
+
+A recursive set values can reference each other, regardless of their literal order, but not circularly, obviously...
+
+#+begin_src nix
+rec {x = 4; x2 = x * x;}
+rec {x2 = x * x; x = 4;}
+#+end_src
+
+#+RESULTS:
+: { x = 4; x2 = 16; }
+: { x = 4; x2 = 16; }
+
+**** Union of sets
+
+#+begin_src nix
+{foo = 3; bar = 4;} // {foo = 15; yo = 42;}
+#+end_src
+
+#+RESULTS:
+: { bar = 4; foo = 15; yo = 42; }
+
+**** Intersection of sets
+
+Intersect two sets by attributes, the values of the latter set take precedence.
+
+#+begin_src nix
+builtins.intersectAttrs {foo = 3; bar = 4;} {foo = 15; yo = 42;}
+#+end_src
+
+#+RESULTS:
+: { foo = 15; }
+
+****  set funcotors
+
+#+begin_src nix
+let add = { __functor = self: x: x + self.x; };
+    inc = add // { x = 5; };
+in inc 2
+#+end_src
+
+#+RESULTS:
+:               inc = add // { x = 5; };
+:           in inc 2
+: 7
+
+Practical example
+
+#+begin_src nix
+let add = { __functor = self: x: builtins.concatStringsSep "" [self.prefix x]; };
+    urls = add // { prefix = "https://"; };
+in urls "wikipedia.org"
+#+end_src
+
+#+RESULTS:
+:               urls = add // { prefix = "https://"; };
+:           in urls "wikipedia.org"
+: "https://wikipedia.org"
+
+*** Control flow
+****  if then else
+
+#+begin_src nix
+if true then "foo" else "bar"
+#+end_src
+
+#+RESULTS:
+: "foo"
+
+**** Assertion
+
+#+begin_src nix
+assert true; "works"
+#+end_src
+
+#+RESULTS:
+: "works"
+
+It throws error if the first expression evaluates false.
+
+#+begin_src nix
+assert false; "error"
+#+end_src
+
+#+RESULTS:
+
+**** Exit/abort print error message
+
+throw errors can be skipped by ~nix-env -qa~, when it evaluates a set of derivations, abort on the other hand will certanly exit
+
+#+begin_src nix
+1 + 2
+throw "Error msg"
+abort "Error msg"
+2 + 3
+#+end_src
+
+**** Sequential evaluation
+
+#+begin_src nix
+builtins.seq (3 == 3) (2 + 3)
+builtins.seq (3 == 2) (2 + 3)
+#+end_src
+
+#+RESULTS:
+: 5
+: 5
+
+**** Deep sequential evaluation
+
+#+begin_src nix
+builtins.deepSeq [(2 - 1) (3 + 4)] (3 - 4)
+#+end_src
+
+#+RESULTS:
+: -1
+
+*** Functional programming
+****  function definition
+
+There is three different function definition pattern
+
+*****  identifier pattern
+
+#+begin_src nix
+add = x: y: x + y
+add 1 2
+#+end_src
+
+#+RESULTS:
+: 3
+
+*****  set pattern, which lets you define default values
+
+#+begin_src nix
+add = {x, y ? 1}: x + y
+add {x = 1; y = 2;}
+add {x = 1;}
+#+end_src
+
+#+RESULTS:
+: 3
+: 2
+
+*****  @ pattern  which  give you acces to the set of arguments
+
+#+begin_src nix
+add = {x, y} @ args: args // { sum = x + y;}
+add {x = 1; y = 2;}
+#+end_src
+
+#+RESULTS:
+: { sum = 3; x = 1; y = 2; }
+
+**** Default function arguments
+
+#+begin_src nix
+({ x, y ? "No y"}: y) {x = 1; y = 2;}
+({ x, y ? "No y"}: y) {x = 1;}
+#+end_src
+
+#+RESULTS:
+: 2
+: "No y"
+
+However passing a set with an attribute not expected by the function will throw an error.
+
+#+begin_src nix
+({ x, y ? "No y"}: y) {x = 1; z = 2;}
+#+end_src
+
+**** Currying/partial
+
+#+begin_src nix
+doubleIt = (builtins.mul 2)
+builtins.typeOf doubleIt
+doubleIt 7
+#+end_src
+
+#+RESULTS:
+: "lambda"
+: 14
+
+**** Get function argument set attributes
+
+The returned set will hold the attributes name, their value be true if they are defaulted, false otherwise.
+
+#+begin_src nix
+builtins.functionArgs  ({ x, y ? 123}: 42)
+#+end_src
+
+#+RESULTS:
+: 2
+: "No y"
+: { x = false; y = true; }
+
+*** Paths
+**** Basename
+
+#+begin_src nix
+baseNameOf /tmp/foo/bar
+#+end_src
+
+#+RESULTS:
+: "bar"
+****
+**** Directory name (dirname)
+
+#+begin_src nix
+builtins.dirOf /tmp/test
+#+end_src
+
+#+RESULTS:
+: /tmp
+
+**** Path exists
+
+#+begin_src nix
+builtins.pathExists /dev
+builtins.pathExists /no/path/like/this/name
+#+end_src
+
+#+RESULTS:
+: true
+: false
+
+**** Read directory
+
+#+begin_src nix :results drawer
+builtins.readDir ''/home/${builtins.getEnv "USER"}''
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+{ "#.xorg.log#" = "regular"; "#.zshrc#" = "regular"; ".Natron" = "directory"; ".Xauthority" = "regular"; ".Xmodmap" = "regular"; ".aspell.en.prepl" = "regular"; ".aspell.en.pws" = "regular"; ".atom" = "directory"; ".audacity-data" = "directory"; ".bash_history" = "regular"; ".bash_profile" = "regular"; ".bashrc" = "regular"; ".cache" = "directory"; ".compose-cache" = "directory"; ".config" = "directory"; ".conkeror.mozdev.org" = "directory"; ".cpan" = "directory"; ".dbus" = "directory"; ".dia" = "directory"; ".dmrc" = "regular"; ".docker" = "directory"; ".e" = "directory"; ".elementary" = "directory"; ".elm" = "directory"; ".emacs.d" = "directory"; ".emacs.d-bck" = "directory"; ".esd_auth" = "regular"; ".floorc.json" = "regular"; ".fonts.conf" = "regular"; ".gimp-2.8" = "directory"; ".gitconfig" = "regular"; ".global-modules" = "directory"; ".gnome" = "directory"; ".gtk-bookmarks" = "regular"; ".gtkrc-2.0" = "regular"; ".imagej" = "directory"; ".ipython" = "directory"; ".java" = "directory"; ".julia" = "directory"; ".julia_history" = "regular"; ".jupyter" = "directory"; ".kde" = "directory"; ".lein" = "directory"; ".lesshst" = "regular"; ".local" = "directory"; ".lyx" = "directory"; ".m2" = "directory"; ".marks" = "directory"; ".mozilla" = "directory"; ".mplayer" = "directory"; ".nix-channels" = "regular"; ".nix-defexpr" = "directory"; ".nix-profile" = "symlink"; ".nixpkgs" = "directory"; ".node-gyp" = "directory"; ".node_repl_history" = "regular"; ".npm" = "directory"; ".npmrc" = "regular"; ".octave_hist" = "regular"; ".pki" = "directory"; ".purple" = "directory"; ".python_history" = "regular"; ".serverauth.1145" = "regular"; ".serverauth.1255" = "regular"; ".serverauth.1348" = "regular"; ".serverauth.1370" = "regular"; ".serverauth.1457" = "regular"; ".serverauth.2549" = "regular"; ".serverauth.2608" = "regular"; ".serverauth.2634" = "regular"; ".serverauth.2797" = "regular"; ".serverauth.3592" = "regular"; ".ssh" = "directory"; ".stellarium" = "directory"; ".texlive2016" = "directory"; ".thumbnails" = "directory"; ".v8flags.5.1.281.103.cf26b618e7c51d26bb0024f800a62a5b.json" = "regular"; ".v8flags.5.1.281.109.cf26b618e7c51d26bb0024f800a62a5b.json" = "regular"; ".v8flags.5.8.283.41.cf26b618e7c51d26bb0024f800a62a5b.json" = "regular"; ".vagrant.d" = "directory"; ".vim" = "directory"; ".viminfo" = "regular"; ".wget-hsts" = "regular"; ".xauth1K5r9d" = "regular"; ".xdvirc" = "regular"; ".xiki" = "directory"; ".xinitrc" = "regular"; ".xmonad" = "directory"; ".xmonad-bck" = "directory"; ".xorg.log" = "regular"; ".xorg.log.old" = "regular"; ".xorg.log.swp" = "regular"; ".xsession-errors" = "regular"; ".xsession-errors.old" = "regular"; ".zcompdump" = "regular"; ".zcompdump-attilaNotebook-5.3.1" = "regular"; ".zcompdump-attilaNotebook-5.4.2" = "regular"; ".zotero" = "directory"; ".zsh_history" = "regular"; ".zshrc" = "regular"; "Black.Mirror.S01.1080p.WEB-DL.AAC2.0.H.264-DnO[rartv]" = "directory"; "Black.Mirror.S02.1080p.WEBRip.DD2.0.x264-CasStudio[rartv]" = "directory"; Desktop = "directory"; Documents = "directory"; Downloads = "directory"; Music = "directory"; Pictures = "directory"; Public = "directory"; Templates = "directory"; Videos = "directory"; "VirtualBox VMs" = "directory"; Zotero = "directory"; bck = "directory"; bin = "directory"; data = "directory"; digikam_presets = "directory"; export = "directory"; floobits = "directory"; global-modules = "directory"; install_xsh = "regular"; local = "directory"; nix = "directory"; "node-packages-v6.json" = "regular"; node_modules = "directory"; octave-workspace = "regular"; "org.kde.konsole.desktop" = "symlink"; "package-lock.json" = "regular"; projects = "directory"; "repl-temp-000.elm" = "regular"; tmpFile = "regular"; webgl = "directory"; "x.log" = "regular"; xiki-project = "directory"; }
+:END:
+
+possible types are ~directory~, ~regular~, ~symlink~ and ~unknown~ for device files.
+
+*** Versions
+**** compare versions
+
+#+begin_src nix
+builtins.compareVersions "1.0.0" "1.0.0" # =>  0
+builtins.compareVersions "1.0.1" "1.0.0" # =>  1
+builtins.compareVersions "1.0.0" "1.0.1" # => -1
+#+end_src
+
+#+RESULTS:
+: 0
+: 1
+: -1
+
+**** Split strings to package name and version
+
+#+begin_src nix
+builtins.parseDrvName "node-8.9.1"
+builtins.parseDrvName "nix-0.12pre12876"
+#+end_src
+
+#+RESULTS:
+: { name = "node"; version = "8.9.1"; }
+: { name = "nix"; version = "0.12pre12876"; }
+
+*** modules
+
+#+begin_src nix
+import nix-modules/simple-expression.nix
+rec {x = 42; y = import nix-modules/expression-require-argument.nix x;}
+import nix-modules/expression-require-set.nix {x = 3; y = 5;}
+#+end_src
+
+#+RESULTS:
+: 4
+: { x = 42; y = 43; }
+: 20
+
+***  Debug
+
+#+begin_src nix
+builtins.trace (builtins.concatLists [["debug"] [" info"]]) (1 + 5)
+#+end_src
+
+** Interoperation
+*** Environment
+**** Get environmental variables
+
+#+begin_src nix
+builtins.getEnv "USER"
+builtins.getEnv "NO_ENV_LIKE_THIS"
+#+end_src
+
+#+RESULTS:
+: "attila"
+: ""
+
+*** System
+**** Get system type
+
+#+begin_src nix
+builtins.currentSystem
+#+end_src
+
+#+RESULTS:
+: "x86_64-linux"
+*** Files
+**** Write to files
+
+#+begin_src nix
+builtins.toFile "file-name.txt" "content of the file"
+#+end_src
+
+#+RESULTS:
+: "/nix/store/f7xmizm7vykza0345w0dm3ydq2b2ka2g-file-name.txt"
+
+**** Read file
+
+#+begin_src nix
+builtins.readFile nix-modules/simple-expression.nix
+#+end_src
+
+#+RESULTS:
+: "3 + 1\n"
+
+*** Network
+****  Fetch tarball
+
+#+begin_src nix
+fetchTarball https://github.com/NixOS/nixpkgs-channels/archive/nixos-14.12.tar.gz
+#+end_src
+****  Fetch URL
+
+It will return the path of the downloaded file
+
+#+begin_src nix
+builtins.fetchurl http://example.org/
+#+end_src
+
+#+RESULTS:
+: "/nix/store/hwcrvwlm5bifjry80lk0j7nw3izcd8lw-"
+
+**** Decode JSON
+
+#+begin_src nix
+builtins.fromJSON ''{"x": [1, 2, 3], "y": null}''
+#+end_src
+
+#+RESULTS:
+: { x = [ ... ]; y = null; }
+
+**** Encode JSON
+
+#+begin_src nix
+builtins.toJSON {foo = {bar = 1; foobar = 2;}; yo=3;}
+#+end_src
+
+#+RESULTS:
+: "{\"foo\":{\"bar\":1,\"foobar\":2},\"yo\":3}"
+
+**** Encode XML
+
+#+begin_src nix
+builtins.toXML {foo = 3;}
+builtins.toXML "foo bar"
+builtins.toXML builtins.div
+#+end_src
+
+#+RESULTS:
+: "<?xml version='1.0' encoding='utf-8'?>\n<expr>\n  <attrs>\n    <attr name=\"foo\">\n      <int value=\"3\" />\n    </attr>\n  </attrs>\n</expr>\n"
+: "<?xml version='1.0' encoding='utf-8'?>\n<expr>\n  <string value=\"foo bar\" />\n</expr>\n"
+: "<?xml version='1.0' encoding='utf-8'?>\n<expr>\n  <unevaluated />\n</expr>\n"
+
+*** Derivations
+**** String to hash string
+
+#+begin_src nix
+builtins.hashString "md5" "foo"
+builtins.hashString "sha1" "foo"
+builtins.hashString "sha256" "foo"
+#+end_src
+
+#+RESULTS:
+: "acbd18db4cc2f85cedef654fccc4a4d8"
+: "0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"
+: "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+** Derivations
+*** Use packages
+** upcaming features
+- ~builtins.split regex str~
