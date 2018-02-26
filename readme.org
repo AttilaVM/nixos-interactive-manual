@@ -1,7 +1,7 @@
 #+PROPERTY: header-args:sh :colnames yes
 
 #+name: tabSep
-#+begin_src sh :var string="foo bar"
+#+begin_src sh :var string="foo bar" :exports none
 echo "$string" | sed 's/ /\t/g'
 #+end_src
 
@@ -14,7 +14,7 @@ echo "$string" | sed 's/ /\t/g'
 *** Executable sym
 If a derivation is installed inside a user env
 
-#+begin_src sh :results value file
+#+begin_src sh :results value file :exports both
 which git
 #+end_src
 
@@ -24,13 +24,12 @@ which git
 
 If a derivation is installed inside a NixOs profile
 
-#+begin_src sh :results value file
+#+begin_src sh :results value file :exports both
 which chromium
 #+end_src
 
 #+RESULTS:
-[[file:/home/attila/.nix-profile/bin/chromium
-]]
+[[file:/home/attila/.nix-profile/bin/chromium]]
 
 however they are just sym links to the real executables inside store
 
@@ -87,7 +86,7 @@ https://nixos.org/channels/nixpkgs-unstable nixpkgs
 
 You can list user channel generations:
 
-#+begin_src sh
+#+begin_src sh :exports both
 nix-env --list-generations -p /nix/var/nix/profiles/per-user/$USER/channels
 #+end_src
 
