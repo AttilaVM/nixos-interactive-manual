@@ -149,6 +149,14 @@ nix-env --list-generations -p /nix/var/nix/profiles/per-user/$USER/channels
 *Note:* You can use ~nix-channel --rollback [generation]~ too, but it is not consistent with the concept, that *channels states are simply stored in a profile*
 
 ** nix-env
+*** Search available packages
+
+There are two switch to available packages the ~-A~ to search only the top level nix-expressions
+
+*** Use local nix expression as source
+
+
+
 *** list all generations of the current profile
 
 #+begin_src sh :results output table
@@ -586,6 +594,17 @@ nix-store --query --roots `which node`
 | /run/current-system                                               |                 |
 |                                                                   |                 |
 ** environmental variables
+***  NIX_PATH
+
+~NIX_PAT~ points to a nix expression (a directory with a default.nix in its root)
+
+#+begin_src sh
+echo $NIX_PATH
+#+end_src
+
+#+RESULTS:
+: nixpkgs=/home/attila/.nix-defexpr/channels/nixpkgs
+
 ***  IN_NIX_SHELL
 
 ~1~ if inside a nix shell environment, empty string otherwise
@@ -598,7 +617,6 @@ nix-shell --command 'echo "IN_NIX_SHELL: $IN_NIX_SHELL"' nix-modules/default.nix
 #+RESULTS:
 | IN_NIX_SHELL: |   |
 | IN_NIX_SHELL: | 1 |
-
 
 * Nix as a language
 ** Basics
